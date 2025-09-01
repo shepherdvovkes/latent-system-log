@@ -9,7 +9,9 @@ services:
       - "9000:9000"  # Native port
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./config/clickhouse:/etc/clickhouse-server/config.d
+      - ./config/clickhouse-server.xml:/etc/clickhouse-server/config.xml:ro
+      - ./config/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./config/default-user.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
     environment:
       - CLICKHOUSE_DB=system_logs
       - CLICKHOUSE_USER=default

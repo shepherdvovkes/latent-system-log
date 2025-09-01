@@ -15,7 +15,7 @@ type = "clickhouse"
 inputs = ["system_logs"]
 endpoint = "http://clickhouse:8123"
 database = "system_logs"
-table = "logs"
+table = "raw_logs"
 compression = "gzip"
 
 [sinks.console_debug]

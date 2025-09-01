@@ -5,7 +5,7 @@ Main API routes for the System Log Analysis and AI Assistant.
 from datetime import datetime
 from typing import List
 import os
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse, FileResponse
 import psutil
 
@@ -18,6 +18,10 @@ from app.models.schemas import (
 )
 from app.services.hf_model_searcher import HFModelSearcher
 from app.core.config import settings
+from app.services.embedding_classifier import EmbeddingClassifierService
+import requests
+import json
+from sentence_transformers import SentenceTransformer
 
 # Create router
 api_router = APIRouter()
@@ -697,3 +701,158 @@ async def download_export(filename: str):
         return FileResponse(file_path, filename=filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+
+@api_router.post("/inference/embedding-classifier")
+async def embedding_classifier_infer(payload: dict = Body(...)):
+    """Run inference using the embedding-based classifier on provided texts."""
+    try:
+        texts = payload.get("texts")
+        if not texts or not isinstance(texts, list):
+            raise HTTPException(status_code=400, detail="'texts' list is required")
+        svc = EmbeddingClassifierService()
+        results = svc.predict(texts)
+        if not results:
+            raise HTTPException(status_code=500, detail="Classifier not available")
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+
+
+@api_router.post("/inference/backfill-clickhouse")
+async def backfill_clickhouse_predictions(limit: int = 10000):
+    """Compute predictions for first N embeddings and store them back in ClickHouse."""
+    try:
+        # Fetch messages from our embeddings table via HTTP ClickHouse
+        base_url = "http://localhost:8123"
+        query = f"SELECT message FROM system_logs.embeddings LIMIT {limit} FORMAT JSONEachRow"
+        r = requests.post(f"{base_url}/", params={"query": query}, headers={"Content-Type": "text/plain"}, timeout=120)
+        r.raise_for_status()
+        rows = [json.loads(line) for line in r.text.strip().splitlines() if line.strip()]
+        texts = [row.get("message", "") for row in rows]
+        if not texts:
+            return {"updated": 0}
+
+        # Predict
+        svc = EmbeddingClassifierService()
+        results = svc.predict(texts)
+
+        # Create predictions table if not exists
+        create_q = """
+        CREATE TABLE IF NOT EXISTS system_logs.predictions (
+          message String,
+          label String,
+          proba_error Float32,
+          proba_warning Float32,
+          proba_info Float32
+        ) ENGINE = MergeTree() ORDER BY (label)
+        """
+        requests.post(f"{base_url}/", params={"query": create_q}, headers={"Content-Type": "text/plain"}, timeout=60).raise_for_status()
+
+        # Insert
+        lines = []
+        for text, res in zip(texts, results):
+            lines.append(json.dumps({
+                "message": text,
+                "label": res.get("label", "info"),
+                "proba_error": float(res.get("proba_error", 0.0)),
+                "proba_warning": float(res.get("proba_warning", 0.0)),
+                "proba_info": float(res.get("proba_info", 0.0)),
+            }))
+        ins_q = "INSERT INTO system_logs.predictions (message, label, proba_error, proba_warning, proba_info) FORMAT JSONEachRow"
+        requests.post(f"{base_url}/", params={"query": ins_q}, data="\n".join(lines).encode("utf-8"), headers={"Content-Type": "application/x-ndjson"}, timeout=300).raise_for_status()
+
+        return {"updated": len(lines)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
+
+CLICKHOUSE_HTTP = "http://localhost:8123"
+
+_search_embedder = None
+
+def _get_embedder():
+    global _search_embedder
+    if _search_embedder is None:
+        _search_embedder = SentenceTransformer(settings.EMBEDDING_MODEL)
+    return _search_embedder
+
+
+@api_router.get("/insights/summary")
+async def insights_summary(hours: int = 24, limit: int = 50):
+    """Summarize errors, security, and hardware-related issues from ClickHouse."""
+    try:
+        # Since timestamps are stored as strings, use substring filters (fallback)
+        # Basic counts
+        base = "system_logs.raw_logs"
+        # Heuristic filters
+        error_filter = "lower(message) ILIKE '%error%' OR lower(message) ILIKE '%failed%' OR lower(message) ILIKE '%panic%' OR lower(message) ILIKE '%crash%'"
+        security_filter = "lower(message) ILIKE '%sandbox%' OR lower(message) ILIKE '%violation%' OR lower(message) ILIKE '%deny%' OR lower(message) ILIKE '%unauthoriz%'"
+        hardware_filter = "lower(message) ILIKE '%bluetooth%' OR lower(message) ILIKE '%wifi%' OR lower(message) ILIKE '%usb%' OR lower(message) ILIKE '%disk%' OR lower(message) ILIKE '%battery%' OR lower(message) ILIKE '%thermal%' OR lower(message) ILIKE '%sensor%' OR lower(message) ILIKE '%camera%' OR lower(message) ILIKE '%audio%' OR lower(message) ILIKE '%microphone%' OR lower(message) ILIKE '%thunderbolt%'"
+
+        def ch(query: str) -> str:
+            resp = requests.post(CLICKHOUSE_HTTP + "/", params={"query": query}, headers={"Content-Type": "text/plain"}, timeout=60)
+            resp.raise_for_status()
+            return resp.text
+
+        def rows(query: str):
+            if "FORMAT" not in query.upper():
+                query += " FORMAT JSONEachRow"
+            txt = ch(query)
+            return [json.loads(line) for line in txt.strip().splitlines() if line.strip()]
+
+        summary = {}
+        # Totals
+        total = rows(f"SELECT count() AS c FROM {base}")
+        summary["total_logs"] = int(total[0]["c"]) if total else 0
+
+        # Error/security/hardware counts
+        err = rows(f"SELECT count() AS c FROM {base} WHERE {error_filter}")
+        sec = rows(f"SELECT count() AS c FROM {base} WHERE {security_filter}")
+        hw = rows(f"SELECT count() AS c FROM {base} WHERE {hardware_filter}")
+        summary["errors"] = int(err[0]["c"]) if err else 0
+        summary["security_issues"] = int(sec[0]["c"]) if sec else 0
+        summary["hardware_issues"] = int(hw[0]["c"]) if hw else 0
+
+        # Top messages per category
+        top_err = rows(f"SELECT message FROM {base} WHERE {error_filter} LIMIT {limit}")
+        top_sec = rows(f"SELECT message FROM {base} WHERE {security_filter} LIMIT {limit}")
+        top_hw = rows(f"SELECT message FROM {base} WHERE {hardware_filter} LIMIT {limit}")
+        summary["sample_errors"] = [r.get("message", "") for r in top_err]
+        summary["sample_security"] = [r.get("message", "") for r in top_sec]
+        summary["sample_hardware"] = [r.get("message", "") for r in top_hw]
+
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insights summary failed: {str(e)}")
+
+
+@api_router.post("/insights/search")
+async def insights_search(payload: dict = Body(...)):
+    """Semantic search over ClickHouse embeddings table using cosine similarity."""
+    try:
+        query = payload.get("query")
+        top = int(payload.get("top", 20))
+        if not query or not isinstance(query, str):
+            raise HTTPException(status_code=400, detail="'query' string is required")
+
+        embedder = _get_embedder()
+        qv = embedder.encode([query], show_progress_bar=False, convert_to_numpy=True).astype("float32")[0]
+        # L2 normalize
+        import numpy as np
+        qv = qv / (np.linalg.norm(qv) + 1e-12)
+        coeffs = ",".join(str(float(x)) for x in qv.tolist())
+
+        ch_query = f"""
+        SELECT message, timestamp, host,
+               arraySum(arrayMap((a,b)->a*b, embedding, [{coeffs}])) AS score
+        FROM system_logs.embeddings
+        ORDER BY score DESC
+        LIMIT {top}
+        FORMAT JSONEachRow
+        """
+        resp = requests.post(CLICKHOUSE_HTTP + "/", params={"query": ch_query}, headers={"Content-Type": "text/plain"}, timeout=120)
+        resp.raise_for_status()
+        lines = [json.loads(line) for line in resp.text.strip().splitlines() if line.strip()]
+        return {"results": lines, "count": len(lines)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Semantic search failed: {str(e)}")

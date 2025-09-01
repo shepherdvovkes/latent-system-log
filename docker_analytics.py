@@ -18,7 +18,7 @@ class DockerClickHouseAnalytics:
     def __init__(self, host: str = "localhost", port: int = 8123):
         self.base_url = f"http://{host}:{port}"
         self.database = "system_logs"
-        self.table = "logs"
+        self.table = "raw_logs"
     
     def execute_query(self, query: str) -> List[Dict[str, Any]]:
         """Execute a ClickHouse query and return results."""
