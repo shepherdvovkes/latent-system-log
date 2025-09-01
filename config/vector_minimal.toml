@@ -1,0 +1,25 @@
+# Minimal Vector configuration - just forward logs to ClickHouse
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[sources.system_logs]
+type = "file"
+include = ["/var/log/lastday.log"]
+read_from = "beginning"
+max_line_bytes = 1048576
+
+[sinks.clickhouse_logs]
+type = "clickhouse"
+inputs = ["system_logs"]
+endpoint = "http://clickhouse:8123"
+database = "system_logs"
+table = "logs"
+compression = "gzip"
+
+[sinks.console_debug]
+type = "console"
+inputs = ["system_logs"]
+encoding.codec = "json"
+target = "stdout"

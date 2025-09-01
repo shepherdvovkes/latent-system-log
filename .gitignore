@@ -1,0 +1,64 @@
+# Environment variables
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Data exports
+data/exports/
+data/clickhouse/
+
+# Model files and training outputs
+training_output/
+models/
+*.pth
+*.pt
+*.bin
+
+# Docker
+docker-compose.override.yml
+
+# Vector data
+vector.tar.gz
+
+# System specific
+SystemLogFetcher/build/
+SystemLogFetcher/system_logs.db

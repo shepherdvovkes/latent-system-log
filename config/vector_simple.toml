@@ -1,0 +1,61 @@
+# Simplified Vector configuration for Docker environment
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[sources.system_logs]
+type = "file"
+include = ["/var/log/lastday.log"]
+read_from = "beginning"
+max_line_bytes = 1048576
+
+[transforms.parse_logs]
+type = "remap"
+inputs = ["system_logs"]
+source = '''
+# Simple parsing - just extract basic fields
+if exists(.message) {
+    # Try to parse the log format
+    parsed = parse_regex!(.message, r'^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{4})\\s+(?P<thread_id>\\S+)\\s+(?P<log_type>\\S+)\\s+(?P<activity_id>\\S+)\\s+(?P<pid>\\d+)\\s+(?P<ttl>\\d+)\\s+(?P<source>\\S+):\\s*(?P<log_message>.*)$')
+    
+    if exists(parsed) {
+        .timestamp = parsed.timestamp
+        .thread_id = parsed.thread_id
+        .log_type = parsed.log_type
+        .activity_id = parsed.activity_id
+        .pid = to_int!(parsed.pid)
+        .ttl = to_int!(parsed.ttl)
+        .source = parsed.source
+        .message = parsed.log_message
+        
+        # Simple level detection
+        message_lower = downcase(.message)
+        if includes(message_lower, "error") || includes(message_lower, "failed") {
+            .level = "error"
+        } else if includes(message_lower, "warning") || includes(message_lower, "warn") {
+            .level = "warning"
+        } else {
+            .level = "info"
+        }
+    } else {
+        # If parsing fails, keep original message
+        .level = "unknown"
+        .source = "unknown"
+    }
+}
+'''
+
+[sinks.clickhouse_logs]
+type = "clickhouse"
+inputs = ["parse_logs"]
+endpoint = "http://clickhouse:8123"
+database = "system_logs"
+table = "logs"
+compression = "gzip"
+
+[sinks.console_debug]
+type = "console"
+inputs = ["parse_logs"]
+encoding.codec = "json"
+target = "stdout"
