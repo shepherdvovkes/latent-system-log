@@ -120,35 +120,108 @@ async def insights_summary(hours: int = 24, limit: int = 50):
 
 @api_router.post("/insights/search")
 async def insights_search(payload: dict = Body(...)):
-    """Semantic search over ClickHouse embeddings table using cosine similarity."""
+    """Hybrid search: keyword filtering + semantic search for better results."""
     try:
         query = payload.get("query")
-        top = int(payload.get("top", 20))
+        top = int(payload.get("top", 10))
+        
         if not query or not isinstance(query, str):
             raise HTTPException(status_code=400, detail="'query' string is required")
 
-        embedder = _get_embedder()
-        qv = embedder.encode([query], show_progress_bar=False, convert_to_numpy=True).astype("float32")[0]
-        
-        # L2 normalize
-        import numpy as np
-        qv = qv / (np.linalg.norm(qv) + 1e-12)
-        coeffs = ",".join(str(float(x)) for x in qv.tolist())
+        # First, try keyword-based search for high-confidence results
+        def keyword_search(keywords: List[str], category: str) -> List[Dict]:
+            keyword_filter = " OR ".join([f"lower(message) LIKE '%{kw}%'" for kw in keywords])
+            
+            kw_query = f"""
+            SELECT DISTINCT message, timestamp, host, 1.0 as score
+            FROM system_logs.raw_logs
+            WHERE ({keyword_filter})
+            AND length(message) > 80
+            AND message NOT LIKE '%assertion failed%'
+            AND message NOT LIKE '%Statistics:%'
+            AND message NOT LIKE '%--enable-%'
+            ORDER BY timestamp DESC
+            LIMIT {top}
+            FORMAT JSONEachRow
+            """
+            
+            resp = requests.post(CLICKHOUSE_HTTP + "/", params={"query": kw_query}, timeout=60)
+            if resp.status_code == 200:
+                results = [json.loads(line) for line in resp.text.strip().splitlines() if line.strip()]
+                # Add category and high confidence
+                for r in results:
+                    r["score"] = 0.85  # High confidence for keyword matches
+                    r["category"] = category
+                return results[:top]
+            return []
 
-        ch_query = f"""
-        SELECT message, timestamp, host,
-               arraySum(arrayMap((a,b)->a*b, embedding, [{coeffs}])) AS score
-        FROM system_logs.embeddings
-        ORDER BY score DESC
-        LIMIT {top}
-        FORMAT JSONEachRow
-        """
-        resp = requests.post(CLICKHOUSE_HTTP + "/", params={"query": ch_query}, headers={"Content-Type": "text/plain"}, timeout=120)
-        resp.raise_for_status()
-        lines = [json.loads(line) for line in resp.text.strip().splitlines() if line.strip()]
-        return {"results": lines, "count": len(lines)}
+        # Determine search strategy based on query
+        query_lower = query.lower()
+        results = []
+        
+        if any(word in query_lower for word in ["security", "violation", "sandbox", "deny"]):
+            keywords = ["violation", "sandbox", "deny", "unauthorized", "blocked", "security"]
+            results = keyword_search(keywords, "security")
+            
+        elif any(word in query_lower for word in ["hardware", "thermal", "battery", "bluetooth", "wifi"]):
+            keywords = ["thermal", "battery", "bluetooth", "wifi", "usb", "disk", "hardware", "sensor"]
+            results = keyword_search(keywords, "hardware")
+            
+        elif any(word in query_lower for word in ["error", "crash", "panic", "failed"]):
+            keywords = ["crash", "panic", "failed", "timeout", "connection refused", "permission denied"]
+            results = keyword_search(keywords, "error")
+            
+        elif any(word in query_lower for word in ["performance", "slow", "lag", "cpu", "memory"]):
+            keywords = ["slow", "lag", "performance", "cpu", "memory", "load", "pressure"]
+            results = keyword_search(keywords, "performance")
+        
+        # If no keyword results or need more, fall back to semantic search
+        if len(results) < 3:
+            try:
+                embedder = _get_embedder()
+                qv = embedder.encode([query], show_progress_bar=False, convert_to_numpy=True).astype("float32")[0]
+                
+                import numpy as np
+                qv = qv / (np.linalg.norm(qv) + 1e-12)
+                coeffs = ",".join(str(float(x)) for x in qv.tolist())
+
+                sem_query = f"""
+                SELECT message, timestamp, host,
+                       arraySum(arrayMap((a,b)->a*b, embedding, [{coeffs}])) AS score
+                FROM system_logs.embeddings
+                WHERE length(message) > 80
+                AND message NOT LIKE '%assertion failed%'
+                AND message NOT LIKE '%Statistics:%'
+                ORDER BY score DESC
+                LIMIT {top}
+                FORMAT JSONEachRow
+                """
+                resp = requests.post(CLICKHOUSE_HTTP + "/", data=sem_query.encode(), headers={"Content-Type": "text/plain"}, timeout=120)
+                if resp.status_code == 200:
+                    sem_results = [json.loads(line) for line in resp.text.strip().splitlines() if line.strip()]
+                    # Only add semantic results with decent scores
+                    for r in sem_results:
+                        if r.get("score", 0) > 0.4:  # Higher threshold
+                            r["category"] = "semantic"
+                            results.append(r)
+            except:
+                pass  # Fallback gracefully
+        
+        # Remove duplicates and limit results
+        unique_results = []
+        seen = set()
+        
+        for result in results:
+            msg_key = result.get("message", "")[:150]
+            if msg_key not in seen:
+                seen.add(msg_key)
+                unique_results.append(result)
+                if len(unique_results) >= top:
+                    break
+        
+        return {"results": unique_results, "count": len(unique_results)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Semantic search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @api_router.get("/")
