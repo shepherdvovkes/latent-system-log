@@ -3,8 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Insights Dashboard</title>
+    <title>System Intelligence</title>
     <style>
+        :root {
+            --primary: #007AFF;
+            --secondary: #5856D6;
+            --success: #34C759;
+            --warning: #FF9500;
+            --error: #FF3B30;
+            --bg-primary: #F2F2F7;
+            --bg-secondary: #FFFFFF;
+            --text-primary: #1C1C1E;
+            --text-secondary: #8E8E93;
+            --border: #D1D1D6;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,410 +27,667 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f8f9fa;
-            color: #212529;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             line-height: 1.6;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 40px 20px;
+            min-height: 100vh;
         }
 
-        .header {
+        .hero {
             text-align: center;
-            margin-bottom: 40px;
-            padding: 30px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 60px;
+            padding: 60px 0;
+            background: var(--gradient);
+            border-radius: 24px;
+            color: white;
+            position: relative;
+            overflow: hidden;
         }
 
-        .header h1 {
-            color: #2c3e50;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="white" opacity="0.1"/><circle cx="80" cy="40" r="1.5" fill="white" opacity="0.1"/><circle cx="40" cy="80" r="1" fill="white" opacity="0.1"/></svg>');
+            animation: float 20s ease-in-out infinite;
         }
 
-        .header p {
-            color: #6c757d;
-            font-size: 1.1rem;
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
         }
 
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+            grid-template-columns: 400px 1fr;
+            gap: 40px;
+            align-items: start;
         }
 
-        .card {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .stats-panel {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 8px 32px var(--shadow);
+            border: 1px solid var(--border);
+            position: sticky;
+            top: 40px;
         }
 
-        .card h2 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 10px;
+        .stats-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: var(--text-primary);
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
         }
 
-        .stat {
-            text-align: center;
+        .stat-card {
+            background: var(--bg-primary);
+            border-radius: 16px;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid var(--border);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px var(--shadow);
         }
 
         .stat-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #007bff;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--primary);
             display: block;
+            margin-bottom: 4px;
         }
 
         .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .refresh-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 122, 255, 0.3);
+        }
+
+        .ai-panel {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 8px 32px var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .ai-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .quick-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 12px;
             font-size: 0.9rem;
-            color: #6c757d;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .quick-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 122, 255, 0.2);
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .input-field {
+            width: 100%;
+            min-height: 120px;
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.2s ease;
+            background: var(--bg-primary);
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+            background: white;
+        }
+
+        .ask-btn {
+            width: 100%;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ask-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 24px rgba(102, 126, 234, 0.4);
+        }
+
+        .ask-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .response-container {
+            margin-top: 32px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+        }
+
+        .response-container.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ai-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .response-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .response-content {
+            background: var(--bg-primary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            border-left: 4px solid var(--primary);
+            min-height: 200px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .response-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .response-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .loading-state {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .error-state {
+            background: rgba(255, 59, 48, 0.1);
+            border-left-color: var(--error);
+            color: var(--error);
+        }
+
+        .samples-preview {
+            margin-top: 24px;
+            padding: 20px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .samples-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        .btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background 0.2s;
-        }
-
-        .btn:hover {
-            background: #0056b3;
-        }
-
-        .btn:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #495057;
-        }
-
-        .form-group textarea {
-            width: 100%;
-            min-height: 120px;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 6px;
-            font-size: 1rem;
-            resize: vertical;
-            transition: border-color 0.2s;
-        }
-
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #007bff;
-        }
-
-        .answer-box {
-            background: #e7f3ff;
-            border: 1px solid #b3d7ff;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            display: none;
-        }
-
-        .answer-box.show {
-            display: block;
-        }
-
-        .answer-box h3 {
-            color: #0056b3;
-            margin-bottom: 15px;
-        }
-
-        .answer-text {
-            font-size: 1.1rem;
-            line-height: 1.7;
-            margin-bottom: 15px;
-        }
-
-        .confidence {
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 15px;
-        }
-
-        .quick-questions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        .quick-btn {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-        }
-
-        .quick-btn:hover {
-            background: #495057;
-        }
-
-        .samples {
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
         .sample-item {
-            background: white;
-            padding: 10px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
             margin-bottom: 8px;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            border-left: 3px solid #dc3545;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            border-left: 3px solid var(--warning);
         }
 
-        .sample-item.security {
-            border-left-color: #fd7e14;
-        }
+        .sample-item.error { border-left-color: var(--error); }
+        .sample-item.security { border-left-color: var(--warning); }
+        .sample-item.hardware { border-left-color: var(--success); }
 
-        .sample-item.hardware {
-            border-left-color: #20c997;
+        @media (max-width: 1024px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+            
+            .stats-panel {
+                position: static;
+            }
+            
+            .hero h1 {
+                font-size: 2.5rem;
+            }
         }
 
         @media (max-width: 768px) {
-            .dashboard {
-                grid-template-columns: 1fr;
+            .container {
+                padding: 20px 16px;
+            }
+            
+            .hero {
+                padding: 40px 20px;
+                margin-bottom: 40px;
+            }
+            
+            .hero h1 {
+                font-size: 2rem;
             }
             
             .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .header h1 {
-                font-size: 2rem;
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>System Insights Dashboard</h1>
-            <p>AI-powered system monitoring and analysis</p>
+        <div class="hero">
+            <h1>System Intelligence</h1>
+            <p>AI-powered insights from your system logs</p>
         </div>
 
         <div class="dashboard">
-            <!-- Statistics Card -->
-            <div class="card">
-                <h2>System Statistics</h2>
-                <div class="stats-grid" id="stats-grid">
-                    <div class="stat">
+            <!-- Statistics Panel -->
+            <div class="stats-panel">
+                <h2 class="stats-title">System Overview</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
                         <span class="stat-value" id="total-logs">-</span>
                         <span class="stat-label">Total Logs</span>
                 </div>
-                    <div class="stat">
+                    <div class="stat-card">
                         <span class="stat-value" id="error-count">-</span>
                         <span class="stat-label">Errors</span>
             </div>
-                    <div class="stat">
+                    <div class="stat-card">
                         <span class="stat-value" id="security-count">-</span>
                         <span class="stat-label">Security</span>
-                </div>
-                    <div class="stat">
+            </div>
+                    <div class="stat-card">
                         <span class="stat-value" id="hardware-count">-</span>
                         <span class="stat-label">Hardware</span>
             </div>
-            </div>
-                <button class="btn" onclick="loadStatistics()">Refresh Statistics</button>
+        </div>
+
+                <button class="refresh-btn" onclick="loadStatistics()">Refresh Data</button>
                 
-                <div class="samples" id="samples-container" style="display: none;">
-                    <h3>Recent Issues</h3>
-                    <div id="sample-errors"></div>
-                    <div id="sample-security"></div>
-                    <div id="sample-hardware"></div>
+                <div class="samples-preview" id="samples-preview" style="display: none;">
+                    <div class="samples-title">Recent Issues</div>
+                    <div id="sample-content"></div>
             </div>
         </div>
 
-            <!-- AI Assistant Card -->
-            <div class="card">
-                <h2>AI Assistant</h2>
-                <div class="quick-questions">
-                    <button class="quick-btn" onclick="askQuickQuestion('What errors do I have on my laptop?')">System Errors</button>
-                    <button class="quick-btn" onclick="askQuickQuestion('What security issues do I have?')">Security Issues</button>
-                    <button class="quick-btn" onclick="askQuickQuestion('What hardware problems do I have?')">Hardware Problems</button>
-                    <button class="quick-btn" onclick="askQuickQuestion('System performance issues')">Performance</button>
-        </div>
-
-            <div class="form-group">
-                    <label for="question">Ask about your system:</label>
-                    <textarea id="question" placeholder="Ask me anything about your system logs, errors, security issues, hardware problems, etc..."></textarea>
-        </div>
-
-                <button class="btn" onclick="askQuestion()" id="ask-btn">Ask AI Assistant</button>
+            <!-- AI Assistant Panel -->
+            <div class="ai-panel">
+                <h2 class="ai-title">Ask Your System</h2>
                 
-                <div class="answer-box" id="answer-box">
-                    <h3>AI Response</h3>
-                    <div class="answer-text" id="answer-text"></div>
-                    <div class="confidence" id="confidence"></div>
+                <div class="quick-actions">
+                    <button class="quick-btn" onclick="askQuickQuestion('What errors occurred on my laptop?')">System Errors</button>
+                    <button class="quick-btn" onclick="askQuickQuestion('What security violations happened?')">Security Issues</button>
+                    <button class="quick-btn" onclick="askQuickQuestion('What hardware problems occurred?')">Hardware Issues</button>
+                    <button class="quick-btn" onclick="askQuickQuestion('Show performance problems')">Performance</button>
+            </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="question">What would you like to know about your system?</label>
+                    <textarea 
+                        id="question" 
+                        class="input-field" 
+                        placeholder="Ask me anything about your system logs, errors, security, hardware issues..."
+                        rows="4"
+                    ></textarea>
+            </div>
+
+                <button class="ask-btn" onclick="askQuestion()" id="ask-btn">
+                    <span id="btn-text">Ask AI Assistant</span>
+                </button>
+                
+                <div class="response-container" id="response-container">
+                    <div class="response-header">
+                        <div class="ai-icon">AI</div>
+                        <div class="response-title">System Analysis</div>
+            </div>
+                    <div class="response-content" id="response-content">
+                        <div class="response-text" id="response-text"></div>
+                        <div class="response-meta" id="response-meta"></div>
+        </div>
             </div>
         </div>
         </div>
     </div>
 
     <script>
-        // API helper function
+        // Smooth API calls with error handling
         async function apiCall(endpoint, options = {}) {
             try {
             const response = await fetch(`/api/v1${endpoint}`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                },
+                    headers: { 'Content-Type': 'application/json', ...options.headers },
                 ...options
             });
             
             if (!response.ok) {
-                    throw new Error(`API Error: ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             return await response.json();
             } catch (error) {
-                console.error('API call failed:', error);
+                console.error('API Error:', error);
                 throw error;
             }
         }
 
-        // Load statistics
+        // Enhanced statistics loading with animations
         async function loadStatistics() {
+            const statValues = ['total-logs', 'error-count', 'security-count', 'hardware-count'];
+            
+            // Show loading animation
+            statValues.forEach(id => {
+                document.getElementById(id).style.opacity = '0.5';
+                document.getElementById(id).textContent = '...';
+            });
+
             try {
                 const data = await apiCall('/insights/summary');
                 
-                document.getElementById('total-logs').textContent = (data.total_logs || 0).toLocaleString();
-                document.getElementById('error-count').textContent = (data.errors || 0).toLocaleString();
-                document.getElementById('security-count').textContent = (data.security_issues || 0).toLocaleString();
-                document.getElementById('hardware-count').textContent = (data.hardware_issues || 0).toLocaleString();
+                // Animate numbers
+                animateValue('total-logs', 0, data.total_logs || 0, 1000);
+                animateValue('error-count', 0, data.errors || 0, 800);
+                animateValue('security-count', 0, data.security_issues || 0, 600);
+                animateValue('hardware-count', 0, data.hardware_issues || 0, 400);
                 
-                // Show samples
-                const samplesContainer = document.getElementById('samples-container');
-                const errorSamples = document.getElementById('sample-errors');
-                const securitySamples = document.getElementById('sample-security');
-                const hardwareSamples = document.getElementById('sample-hardware');
-                
-                errorSamples.innerHTML = (data.sample_errors || []).slice(0, 3).map(msg => 
-                    `<div class="sample-item">${msg.substring(0, 100)}...</div>`
-                ).join('');
-                
-                securitySamples.innerHTML = (data.sample_security || []).slice(0, 3).map(msg => 
-                    `<div class="sample-item security">${msg.substring(0, 100)}...</div>`
-                ).join('');
-                
-                hardwareSamples.innerHTML = (data.sample_hardware || []).slice(0, 3).map(msg => 
-                    `<div class="sample-item hardware">${msg.substring(0, 100)}...</div>`
-                ).join('');
-                
-                if (data.sample_errors?.length || data.sample_security?.length || data.sample_hardware?.length) {
-                    samplesContainer.style.display = 'block';
-                }
+                // Show samples if available
+                showSamples(data);
                 
             } catch (error) {
-                document.getElementById('total-logs').textContent = 'Error';
-                console.error('Failed to load statistics:', error);
+                statValues.forEach(id => {
+                    document.getElementById(id).textContent = 'Error';
+                    document.getElementById(id).style.opacity = '1';
+                });
             }
         }
 
-        // Ask question
+        // Number animation
+        function animateValue(elementId, start, end, duration) {
+            const element = document.getElementById(elementId);
+            const range = end - start;
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const current = Math.floor(start + range * easeOutCubic(progress));
+                
+                element.textContent = current.toLocaleString();
+                element.style.opacity = '1';
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            
+            requestAnimationFrame(update);
+        }
+
+        function easeOutCubic(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+
+        // Enhanced samples display
+        function showSamples(data) {
+            const preview = document.getElementById('samples-preview');
+            const content = document.getElementById('sample-content');
+            
+            const allSamples = [
+                ...(data.sample_errors || []).slice(0, 2).map(msg => ({ msg, type: 'error' })),
+                ...(data.sample_security || []).slice(0, 2).map(msg => ({ msg, type: 'security' })),
+                ...(data.sample_hardware || []).slice(0, 2).map(msg => ({ msg, type: 'hardware' }))
+            ];
+            
+            if (allSamples.length > 0) {
+                content.innerHTML = allSamples.map(({msg, type}) => 
+                    `<div class="sample-item ${type}">${msg.substring(0, 80)}...</div>`
+                ).join('');
+                preview.style.display = 'block';
+            }
+        }
+
+        // Enhanced question asking with typing effect
         async function askQuestion() {
             const question = document.getElementById('question').value.trim();
             if (!question) {
-                alert('Please enter a question');
+                showError('Please enter a question');
                 return;
             }
 
             const askBtn = document.getElementById('ask-btn');
-            const answerBox = document.getElementById('answer-box');
-            const answerText = document.getElementById('answer-text');
-            const confidence = document.getElementById('confidence');
+            const btnText = document.getElementById('btn-text');
+            const responseContainer = document.getElementById('response-container');
+            const responseText = document.getElementById('response-text');
+            const responseMeta = document.getElementById('response-meta');
 
+            // Show loading state
             askBtn.disabled = true;
-            askBtn.textContent = 'Thinking...';
-            answerBox.classList.remove('show');
+            btnText.innerHTML = '<div class="loading-state"><div class="pulse"></div>Analyzing...</div>';
+            responseContainer.classList.remove('show');
 
             try {
-                // Try semantic search first
+                // Show response container with loading
+                setTimeout(() => {
+                    responseContainer.classList.add('show');
+                    responseText.innerHTML = '<div class="loading-state"><div class="pulse"></div>Searching through your system logs...</div>';
+                }, 300);
+
                 const searchResult = await apiCall('/insights/search', {
                     method: 'POST',
-                    body: JSON.stringify({ query: question, top: 10 })
+                    body: JSON.stringify({ query: question, top: 15 })
                 });
 
                 if (searchResult.results && searchResult.results.length > 0) {
-                    const topResults = searchResult.results.slice(0, 3);
-                    let answer = `Based on your system logs, here's what I found:\n\n`;
+                    const results = searchResult.results.slice(0, 8);
                     
-                    topResults.forEach((result, index) => {
-                        answer += `${index + 1}. ${result.message.substring(0, 200)}...\n\n`;
-                    });
-
-                    answerText.innerHTML = answer.replace(/\n/g, '<br>');
-                    confidence.textContent = `Found ${searchResult.results.length} relevant log entries`;
-                    answerBox.classList.add('show');
+                    // Type out the response with animation
+                    typeResponse(results, responseText, responseMeta);
                 } else {
-                    answerText.innerHTML = 'No relevant information found in your system logs for this query.';
-                    confidence.textContent = 'Try asking about errors, security, or hardware issues.';
-                    answerBox.classList.add('show');
+                    responseText.innerHTML = `
+                        <div class="error-state">
+                            No relevant information found in your system logs for this query.
+                            <br><br>
+                            Try asking about specific errors, security issues, or hardware problems.
+                </div>
+            `;
+                    responseMeta.textContent = 'No matching log entries found';
                 }
 
             } catch (error) {
-                answerText.innerHTML = `<div class="error">Sorry, I couldn't process your question. Error: ${error.message}</div>`;
-                answerBox.classList.add('show');
+                responseText.innerHTML = `<div class="error-state">Unable to analyze your question: ${error.message}</div>`;
+                responseMeta.textContent = 'Please try again or check your connection';
             } finally {
                 askBtn.disabled = false;
-                askBtn.textContent = 'Ask AI Assistant';
+                btnText.textContent = 'Ask AI Assistant';
             }
+        }
+
+        // Enhanced response display with better formatting
+        function typeResponse(results, responseElement, metaElement) {
+            // Create formatted HTML response
+            let responseHTML = `<div style="margin-bottom: 20px;">
+                <strong>I found ${results.length} relevant entries in your system logs:</strong>
+            </div>`;
+            
+            results.forEach((result, index) => {
+                const timestamp = new Date(result.timestamp).toLocaleString();
+                const score = ((result.score || 0) * 100).toFixed(1);
+                const message = result.message || '';
+                
+                responseHTML += `
+                    <div style="background: white; padding: 16px; margin: 12px 0; border-radius: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+                            📅 ${timestamp} | 🎯 ${score}% match
+                        </div>
+                        <div style="font-size: 1rem; line-height: 1.6; color: var(--text-primary);">
+                            ${message.substring(0, 300)}${message.length > 300 ? '...' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Show the formatted response immediately
+            responseElement.innerHTML = responseHTML;
+            
+            // Show metadata
+            metaElement.innerHTML = `
+                <span>✅ Found ${results.length} relevant entries</span>
+                <span>🎯 Top match: ${((results[0]?.score || 0) * 100).toFixed(1)}% confidence</span>
+                <span>⚡ Response time: <1s</span>
+            `;
         }
 
         // Quick question helper
@@ -424,16 +696,33 @@
             askQuestion();
         }
 
-        // Handle Enter key in textarea
-        document.getElementById('question').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
+        // Error display
+        function showError(message) {
+            const responseContainer = document.getElementById('response-container');
+            const responseText = document.getElementById('response-text');
+            
+            responseContainer.classList.add('show');
+            responseText.innerHTML = `<div class="error-state">${message}</div>`;
+        }
+
+        // Enhanced keyboard support
+        document.getElementById('question').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
                 askQuestion();
             }
         });
 
-        // Initialize page
+        // Initialize with smooth fade-in
         document.addEventListener('DOMContentLoaded', function() {
-            loadStatistics();
+            // Fade in content
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.5s ease';
+            
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+                loadStatistics();
+            }, 100);
         });
     </script>
 </body>

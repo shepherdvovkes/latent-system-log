@@ -1,25 +1,28 @@
-# Minimal Vector configuration - just forward logs to ClickHouse
+# Real-time macOS system log streaming to ClickHouse
 
 [api]
 enabled = true
 address = "0.0.0.0:8686"
 
-[sources.system_logs]
+# Monitor live system logs file
+[sources.live_system_logs]
 type = "file"
-include = ["/var/log/lastday.log"]
-read_from = "beginning"
+include = ["/var/log/app_logs/live_system.log"]
+read_from = "end"
 max_line_bytes = 1048576
 
+# ClickHouse sink for live logs
 [sinks.clickhouse_logs]
 type = "clickhouse"
-inputs = ["system_logs"]
+inputs = ["live_system_logs"]
 endpoint = "http://clickhouse:8123"
 database = "system_logs"
 table = "raw_logs"
 compression = "gzip"
 
+# Console output for monitoring
 [sinks.console_debug]
 type = "console"
-inputs = ["system_logs"]
+inputs = ["live_system_logs"]
 encoding.codec = "json"
 target = "stdout"
